@@ -1,7 +1,10 @@
 #pragma once
 #include <iostream>                     // Used for cout
 
+// GLOBAL DEFINES
+#define PORT 69
 
+// LOGS
 #define LOG_I std::cout                 // Start log 
 #define END_I std::endl                 // End log
 

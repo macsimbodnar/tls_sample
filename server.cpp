@@ -2,13 +2,11 @@
 #include <string.h>         // Used for strerror
 #include <netinet/in.h>     // Used for sockaddr_in
 #include <sys/socket.h>     // Used for ... You gess, socket
+#include <arpa/inet.h>      // Used for inet_ntop
 #include <openssl/ssl.h>
 #include <openssl/err.h>
-
 #include "defines.hpp"      // Contains the log macros and other defines
 
-
-#define PORT 69
 
 int main(int argc, char **argv) {
 
@@ -41,11 +39,8 @@ int main(int argc, char **argv) {
     }
 
     struct sockaddr_in sockaddress = {0};          // Declare and zeros the general address structure
-
     sockaddress.sin_family = AF_INET;              // Always AF_INET
-
     sockaddress.sin_port = htons(port);            // Port
-
     sockaddress.sin_addr.s_addr = INADDR_ANY;      // Binds the socket to all available interfaces
 
     // Assigns the address specified by sockaddr to the socket referred to by listen_descriptor
@@ -64,7 +59,7 @@ int main(int argc, char **argv) {
 
     // Infinite loop where we wait for new connectiona
     while (true) {
-        LOG_S << "Waiting for client..." << END_S;
+        LOG_I << "Waiting for client..." << END_I;
         /**
          *  Accept the incoming connection
          *
@@ -80,6 +75,11 @@ int main(int argc, char **argv) {
             LOG_E << "Failed to accept: " << strerror(err) << END_E;
             return 1;
         }
+        
+        // Get the client ip. Extend the buffer to hold ipv6
+        char client_ip_buff[INET6_ADDRSTRLEN];
+        inet_ntop(AF_INET, &(sockaddress.sin_addr), client_ip_buff, INET6_ADDRSTRLEN); // Ignore potential errors
+        LOG_I << "Client connected " << client_ip_buff << ":" << port << END_I;
     }
 
     // Load error strings to get human readable results in case of error
