@@ -4,10 +4,14 @@
 #include <sys/socket.h>     // Used for socket
 #include <netdb.h>          // Used for gethostbyname
 #include <arpa/inet.h>      // Used for inet_ntoa
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 #include "defines.hpp"      // Contains the log macros and other defines
 
 
 #define ADDRESS "localhost"
+#define CA_PATH NULL        // TODO(max): Set this
+#define CA_FILE "certificate.pem"
 
 
 int main(int argc, char **argv) {
@@ -16,8 +20,11 @@ int main(int argc, char **argv) {
     struct sockaddr_in sockaddress = {0};
     const std::string address = ADDRESS;
     const unsigned short port = PORT;
+    const char *ca_path = CA_PATH;
+    const char *ca_file = CA_FILE;
     struct hostent *host;
     char *bin_ip;
+    SSL *ssl;
 
     LOG_S << "Starting client..." << END_S;
 
@@ -108,6 +115,45 @@ int main(int argc, char **argv) {
     }
 
     LOG_I << "Connected to the server " << address << ":" << port << END_I;
+
+    ///////////////////////////////////////////////////////////////// TLS
+    LOG_I << "Setup TLS connection " << END_I;
+
+    SSL_load_error_strings();   // Load error strings to get human readable results in case of error
+    ERR_clear_error();          // Clear the error queue before start
+
+    // Create new context
+    SSL_CTX *ctx = SSL_CTX_new(TLS_client_method());
+    if (ctx == NULL) {
+        LOG_E << "Failed to get openssl context" << END_E;
+        return 1;
+    }
+
+    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
+    SSL_CTX_set_verify_depth(ctx, 5);
+
+    // Load the certificate from file and dir
+    if (SSL_CTX_load_verify_locations(ctx, ca_file, ca_path) == 0) {
+        LOG_E << "Failed to load the certificate/s" << END_E;
+        // NOTE(max): In case we return but not close the program we want to free the context
+        SSL_CTX_free(ctx);
+        return 1;
+    }
+
+    // Create a new TLS structure
+    if ((ssl = SSL_new(ctx)) == NULL) {
+        LOG_E << "Failed to create a new SSL" << END_E;
+        SSL_CTX_free(ctx);
+        return 1;
+    }
+
+    // Set the hostname to send with the "Client Hello"
+    if (SSL_set_tlsext_host_name(ssl, address.c_str()) == 0) {
+        LOG_E << "Failed to set the host name to send with the Client Hello" << END_E;
+        SSL_CTX_free(ctx);
+        SSL_free(ssl);
+        return 1;
+    }
 
     LOG_S << "Closing client..." << END_S;
     return 0;
