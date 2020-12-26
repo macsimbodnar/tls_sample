@@ -1,4 +1,5 @@
 CXXFLAGS = -Wall -Wno-deprecated -Werror -std=c++17
+LDLIBS = -lssl -lcrypto
 
 all: server client
 
