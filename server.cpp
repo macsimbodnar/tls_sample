@@ -6,18 +6,7 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
-#define LOG_I std::cout
-#define END_I std::endl
-
-#define LOG_S LOG_I << "\033[92m"
-#define END_S "\033[37m" << END_I
-
-#define LOG_W LOG_I << "\033[33m"
-#define END_W "\033[37m" << END_I
-
-#define LOG_E LOG_I << "\033[31m"
-#define END_E "\033[37m" << END_I
-
+#include "defines.hpp"      // Contains the log macros and other defines
 
 
 int main(int argc, char **argv) {
@@ -35,7 +24,7 @@ int main(int argc, char **argv) {
         LOG_E << "Failed to init the socket: " << strerror(err) << END_E;
     }
 
-    struct sockaddr_in addr;
+    // struct sockaddr_in addr;
 
 
 
