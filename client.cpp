@@ -6,6 +6,7 @@
 #include <arpa/inet.h>      // Used for inet_ntoa
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <openssl/x509v3.h> // Used for X509_CHECK_FLAG_NO_WILDCARDS
 #include "defines.hpp"      // Contains the log macros and other defines
 
 
@@ -13,6 +14,14 @@
 #define CA_PATH NULL        // TODO(max): Set this
 #define CA_FILE "certificate.pem"
 
+// void log_ssl() {
+//     char buf[256];
+
+//     while (ERR_peek_error()) {
+//         ERR_error_string_n(ERR_get_error(), buf, sizeof(buf));
+//         LOG_E << "openssl error: " << buf << END_E;
+//     }
+// }
 
 int main(int argc, char **argv) {
 
@@ -120,10 +129,12 @@ int main(int argc, char **argv) {
     LOG_I << "Setup TLS connection " << END_I;
 
     SSL_load_error_strings();   // Load error strings to get human readable results in case of error
+    ERR_load_crypto_strings();
     ERR_clear_error();          // Clear the error queue before start
 
     // Create new context
     SSL_CTX *ctx = SSL_CTX_new(TLS_client_method());
+
     if (ctx == NULL) {
         LOG_E << "Failed to get openssl context" << END_E;
         return 1;
@@ -154,6 +165,56 @@ int main(int argc, char **argv) {
         SSL_free(ssl);
         return 1;
     }
+
+    // Set the options on how check the hostname
+    SSL_set_hostflags(ssl, X509_CHECK_FLAG_NO_WILDCARDS);
+
+    // Set the hostname to verify
+    if (SSL_set1_host(ssl, address.c_str()) == 0) {
+        LOG_E << "Failed to set the hostname to verify" << END_E;
+        SSL_CTX_free(ctx);
+        SSL_free(ssl);
+        return 1;
+    }
+
+    // Connect the socket file descriptor with the ssl object
+    if (SSL_set_fd(ssl, descriptor) == 0) {
+        LOG_E << "Failed to bind the ssl object and the socket file descriptor" << END_E;
+        SSL_CTX_free(ctx);
+        SSL_free(ssl);
+        return 1;
+    }
+
+    /**
+     * Perform the TLS connection
+     *
+     * Return:
+     *          1   OK
+     *
+     *          0   The TLS/SSL handshake was not successful but was shut down controlled
+     *              and by the specifications of the TLS/SSL protocol.
+     *              Call SSL_get_error() with the return value ret to find out the reason.
+     *
+     *         <0   The TLS/SSL handshake was not successful, because a fatal error occurred
+     *              either at the protocol level or a connection failure occurred.
+     *              The shutdown was not clean. It can also occur of action is need to
+     *              continue the operation for non-blocking BIOs.
+     *              Call SSL_get_error() with the return value ret to find out the reason.
+     */
+    const int connect_e = SSL_connect(ssl);
+
+    if (connect_e <= 0) {
+        int err = SSL_get_error(ssl, connect_e);
+        const char *err_msg = ERR_error_string(err, NULL);
+
+        LOG_E << "Failed to establish TLS connection due to: " << err_msg << END_E;
+
+        SSL_CTX_free(ctx);
+        SSL_free(ssl);
+        return 1;
+    }
+
+    LOG_S << "TLS connection established with the server" << END_S;
 
     LOG_S << "Closing client..." << END_S;
     return 0;
