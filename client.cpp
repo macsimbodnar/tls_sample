@@ -14,14 +14,6 @@
 #define CA_PATH NULL        // TODO(max): Set this
 #define CA_FILE "certificate.pem"
 
-// void log_ssl() {
-//     char buf[256];
-
-//     while (ERR_peek_error()) {
-//         ERR_error_string_n(ERR_get_error(), buf, sizeof(buf));
-//         LOG_E << "openssl error: " << buf << END_E;
-//     }
-// }
 
 int main(int argc, char **argv) {
 
@@ -204,10 +196,8 @@ int main(int argc, char **argv) {
     const int connect_e = SSL_connect(ssl);
 
     if (connect_e <= 0) {
-        int err = SSL_get_error(ssl, connect_e);
-        const char *err_msg = ERR_error_string(err, NULL);
-
-        LOG_E << "Failed to establish TLS connection due to: " << err_msg << END_E;
+        LOG_E << "Failed to establish TLS connection" << END_E;
+        LOG_SSL_STACK();
 
         SSL_CTX_free(ctx);
         SSL_free(ssl);

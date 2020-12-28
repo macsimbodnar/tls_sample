@@ -16,3 +16,12 @@
 
 #define LOG_E LOG_I << "\033[31m"       // Error red log
 #define END_E "\033[37m" << END_I       // End Error red log
+
+#define LOG_SSL_STACK() {\
+    char buf[256];\
+\
+    while (ERR_peek_error()) {\
+        ERR_error_string_n(ERR_get_error(), buf, sizeof(buf));\
+        LOG_E << "openssl error: " << buf << END_E;\
+    }\
+}

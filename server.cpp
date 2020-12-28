@@ -8,14 +8,27 @@
 #include "defines.hpp"      // Contains the log macros and other defines
 
 
+#define CERT_PWD "98a288db5efe910a39df76cce4ddde005dae208cdfcfdde3f4d98b861a72f4c8" // Update this with the content of the password file
+#define CERTIFICATE "certificate.pem"
+#define KEY "certificate.key"
+
+
 int main(int argc, char **argv) {
 
     int listen_descriptor;
     int work_descriptor;
     int optval = 1;
     const unsigned short port = PORT;
+    std::string cert_pwd = CERT_PWD;
+    std::string certificate = CERTIFICATE;
+    std::string key = KEY;
+    SSL *ssl;
 
     LOG_S << "Starting server..." << END_S;
+
+    SSL_load_error_strings();   // Load error strings to get human readable results in case of error
+    ERR_load_crypto_strings();
+    ERR_clear_error();          // Clear the error queue before start
 
     /**
      * Create a socket file listen_descriptor
@@ -39,8 +52,11 @@ int main(int argc, char **argv) {
     }
 
     struct sockaddr_in sockaddress = {0};          // Declare and zeros the general address structure
+
     sockaddress.sin_family = AF_INET;              // Always AF_INET
+
     sockaddress.sin_port = htons(port);            // Port
+
     sockaddress.sin_addr.s_addr = INADDR_ANY;      // Binds the socket to all available interfaces
 
     // Assigns the address specified by sockaddr to the socket referred to by listen_descriptor
@@ -75,18 +91,92 @@ int main(int argc, char **argv) {
             LOG_E << "Failed to accept: " << strerror(err) << END_E;
             return 1;
         }
-        
+
+        // Here we can close the listen socket if we fork or want to serve only one client
+        // if (close(listen_descriptor) == -1) {
+        //     const int err = errno;
+        //     LOG_W << "Failed to close the listen socket: " << strerror(err) << END_W;
+        //     // Here we don't return but just procede to serve the connected client
+        // }
+
         // Get the client ip. Extend the buffer to hold ipv6
         char client_ip_buff[INET6_ADDRSTRLEN];
         inet_ntop(AF_INET, &(sockaddress.sin_addr), client_ip_buff, INET6_ADDRSTRLEN); // Ignore potential errors
         LOG_I << "Client connected " << client_ip_buff << ":" << port << END_I;
+
+        ///////////////////////////////////////////////////////////////// TLS
+
+        // Create new context
+        SSL_CTX *ctx = SSL_CTX_new(TLS_server_method());
+
+        // Load the certificate
+        // Set the certificate password into the openssl userdata
+        SSL_CTX_set_default_passwd_cb_userdata(ctx, (void *)&cert_pwd);
+        // Set the certificate password callback. maybe the most ugly code that you will see
+        SSL_CTX_set_default_passwd_cb(ctx, [](char *buf, int size, int rwflag, void *userdata) -> int {
+            std::string *pwd = (std::string *) userdata;
+
+            if (pwd == 0 || pwd->empty() || size < (pwd->length() + 1)) {
+                return 0;
+            }
+
+            strncpy(buf, pwd->data(), pwd->length());
+            buf[pwd->length()] = 0;
+
+            return pwd->length();
+        });
+
+        // Load the certificate file
+        if (SSL_CTX_use_certificate_file(ctx, certificate.c_str(), SSL_FILETYPE_PEM) != 1) {
+            LOG_E << "Failed to load the certificate " << certificate << END_E;
+            LOG_SSL_STACK();
+            SSL_CTX_free(ctx);
+            return 1;
+        }
+
+        // Load the private key
+        if (SSL_CTX_use_PrivateKey_file(ctx, key.c_str(), SSL_FILETYPE_PEM) <= 0) {
+            LOG_E << "Failed to load the private key " << key << END_E;
+            LOG_SSL_STACK();
+            SSL_CTX_free(ctx);
+            return 1;
+        }
+
+        // Verify the private key
+        if (SSL_CTX_check_private_key(ctx) != 1) {
+            LOG_E << "Failed to verify the private key" << END_E;
+            LOG_SSL_STACK();
+            SSL_CTX_free(ctx);
+            return 1;
+        }
+
+        // Create a new TLS structure
+        if ((ssl = SSL_new(ctx)) == NULL) {
+            LOG_E << "Failed to create a new SSL" << END_E;
+            SSL_CTX_free(ctx);
+            return 1;
+        }
+
+        // Connect the socket file descriptor with the ssl object
+        if (SSL_set_fd(ssl, work_descriptor) == 0) {
+            LOG_E << "Failed to bind the ssl object and the socket file descriptor" << END_E;
+            SSL_CTX_free(ctx);
+            SSL_free(ssl);
+            return 1;
+        }
+
+        // Accept the incoming TLS connection
+        const int accept_e = SSL_accept(ssl);
+
+        if (accept_e <= 0) {
+            LOG_E << "Failed to establish TLS connection" << END_E;
+            LOG_SSL_STACK();
+
+            SSL_CTX_free(ctx);
+            SSL_free(ssl);
+            return 1;
+        }
     }
-
-    // Load error strings to get human readable results in case of error
-    // SSL_load_error_strings();
-
-    // // Clear the error queue before start
-    // ERR_clear_error();
 
     LOG_S << "Closing server..." << END_S;
 
