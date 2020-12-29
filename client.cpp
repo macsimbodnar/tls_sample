@@ -206,6 +206,35 @@ int main(int argc, char **argv) {
 
     LOG_S << "TLS connection established with the server" << END_S;
 
+    // Send data to the client
+    const int sent_data = SSL_write(ssl, MSG_1, sizeof(MSG_1));
+
+    if (sent_data <= 0) {
+        LOG_E << "Failed to send message to the server" << END_E;
+        LOG_SSL_STACK();
+
+        SSL_CTX_free(ctx);
+        SSL_free(ssl);
+        return 1;
+    }
+
+    LOG_I << "Send: " << MSG_1 << END_I;
+
+    // Receive data from the server
+    char msg[sizeof(MSG_2)];
+    const int received_data = SSL_read(ssl, msg, sizeof(MSG_2));
+
+    if (received_data <= 0) {
+        LOG_E << "Failed to receive message from the client" << END_E;
+        LOG_SSL_STACK();
+
+        SSL_CTX_free(ctx);
+        SSL_free(ssl);
+        return 1;
+    }
+
+    LOG_I << "Received: " << msg << END_I;
+
     LOG_S << "Closing client..." << END_S;
     return 0;
 }

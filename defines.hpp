@@ -3,6 +3,9 @@
 
 // GLOBAL DEFINES
 #define PORT 69
+#define MSG_1 "Yo TLS Server! It's me, client"
+#define MSG_2 "Yo client get the fuck off!"
+
 
 // LOGS
 #define LOG_I std::cout                 // Start log 
@@ -17,6 +20,7 @@
 #define LOG_E LOG_I << "\033[31m"       // Error red log
 #define END_E "\033[37m" << END_I       // End Error red log
 
+// UTILS
 #define LOG_SSL_STACK() {\
     char buf[256];\
 \
