@@ -3,6 +3,7 @@
 #include <netinet/in.h>     // Used for sockaddr_in
 #include <sys/socket.h>     // Used for ... You gess, socket
 #include <arpa/inet.h>      // Used for inet_ntop
+#include <unistd.h>         // Used for close
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include "defines.hpp"      // Contains the log macros and other defines
@@ -16,7 +17,7 @@
 int main(int argc, char **argv) {
 
     int listen_descriptor;
-    int work_descriptor;
+    int client_descriptor;
     int optval = 1;
     const unsigned short port = PORT;
     std::string cert_pwd = CERT_PWD;
@@ -86,7 +87,7 @@ int main(int argc, char **argv) {
          */
         socklen_t addrlen = sizeof(sockaddress);
 
-        if ((work_descriptor = accept(listen_descriptor, (sockaddr *)&sockaddress, &addrlen)) == -1) {
+        if ((client_descriptor = accept(listen_descriptor, (sockaddr *)&sockaddress, &addrlen)) == -1) {
             const int err = errno;
             LOG_E << "Failed to accept: " << strerror(err) << END_E;
             return 1;
@@ -138,6 +139,11 @@ int main(int argc, char **argv) {
         if (SSL_CTX_use_PrivateKey_file(ctx, key.c_str(), SSL_FILETYPE_PEM) <= 0) {
             LOG_E << "Failed to load the private key " << key << END_E;
             LOG_SSL_STACK();
+
+            /**
+             * NOTE(max):   The free is useless if we shut down the client like in this case. 
+             *              But if we plane to reuse the client application we need to clean up before leave
+             */
             SSL_CTX_free(ctx);
             return 1;
         }
@@ -158,7 +164,7 @@ int main(int argc, char **argv) {
         }
 
         // Connect the socket file descriptor with the ssl object
-        if (SSL_set_fd(ssl, work_descriptor) == 0) {
+        if (SSL_set_fd(ssl, client_descriptor) == 0) {
             LOG_E << "Failed to bind the ssl object and the socket file descriptor" << END_E;
             SSL_CTX_free(ctx);
             SSL_free(ssl);
@@ -207,9 +213,16 @@ int main(int argc, char **argv) {
         }
 
         LOG_I << "Send: " << MSG_2 << END_I;
+
+        LOG_S << "Disconnecting from the client..." << END_S;
+        SSL_shutdown(ssl);
+        SSL_CTX_free(ctx);
+        SSL_free(ssl);
+        close(client_descriptor);
     }
 
     LOG_S << "Closing server..." << END_S;
+    close(listen_descriptor);
 
     return 0;
 }

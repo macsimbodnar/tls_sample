@@ -4,6 +4,7 @@
 #include <sys/socket.h>     // Used for socket
 #include <netdb.h>          // Used for gethostbyname
 #include <arpa/inet.h>      // Used for inet_ntoa
+#include <unistd.h>         // Used for close
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <openssl/x509v3.h> // Used for X509_CHECK_FLAG_NO_WILDCARDS
@@ -235,6 +236,12 @@ int main(int argc, char **argv) {
 
     LOG_I << "Received: " << msg << END_I;
 
+    // Clean up before exit
     LOG_S << "Closing client..." << END_S;
+    SSL_shutdown(ssl);
+    SSL_free(ssl);
+    SSL_CTX_free(ctx);
+    close(descriptor);
+
     return 0;
 }
