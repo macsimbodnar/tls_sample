@@ -13,7 +13,7 @@
 
 #define ADDRESS "localhost"
 #define CA_PATH NULL        // TODO(max): Set this
-#define CA_FILE "certificate.pem"
+#define CA_FILE "certificate/certificate.pem"
 
 
 int main(int argc, char **argv) {

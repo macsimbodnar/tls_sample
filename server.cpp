@@ -10,8 +10,8 @@
 
 
 #define CERT_PWD "98a288db5efe910a39df76cce4ddde005dae208cdfcfdde3f4d98b861a72f4c8" // Update this with the content of the password file
-#define CERTIFICATE "certificate.pem"
-#define KEY "certificate.key"
+#define CERTIFICATE "certificate/certificate.pem"
+#define KEY "certificate/certificate.key"
 
 
 int main(int argc, char **argv) {
