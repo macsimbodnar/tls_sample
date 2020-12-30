@@ -85,7 +85,7 @@ int main(int argc, char **argv) {
     SSL_CTX_set_default_passwd_cb(ctx, [](char *buf, int size, int rwflag, void *userdata) -> int {
         std::string *pwd = (std::string *) userdata;
 
-        if (pwd == 0 || pwd->empty() || size < (pwd->length() + 1)) {
+        if (pwd == 0 || pwd->empty() || static_cast<size_t>(size) < (pwd->length() + 1)) {
             return 0;
         }
 

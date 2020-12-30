@@ -2,7 +2,7 @@
 #include <iostream>                     // Used for cout
 
 // GLOBAL DEFINES
-#define PORT 69
+#define PORT 6969
 #define MSG_1 "Yo TLS Server! It's me, client"
 #define MSG_2 "Yo client get the fuck off!"
 
