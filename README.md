@@ -4,7 +4,7 @@ This is simple project that shows how to setup a TLS communication between serve
 
 ## Generate test Root CA and Certificates
 
-I already generated rootca and the certificates for `localhost` in order to allow fast tests of the application. I also included the rootCA key in git in case you want to reuse it BUT remember: `NEVER EVER PUBLISH THE rootCAA KEY file`.
+I already generated rootca and the certificates for `localhost` in order to allow fast tests of the application. I also included the rootCA key in git in case you want to reuse it BUT remember: **NEVER EVER PUBLISH THE rootCA KEY file**.
 You can use the following bash snippets to generate your own certificates.
 
 * Generate the private key of the root CA: `openssl genrsa -out rootCAKey.pem 2048`
