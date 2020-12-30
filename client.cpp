@@ -134,7 +134,7 @@ int main(int argc, char **argv) {
     }
 
     SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
-    SSL_CTX_set_verify_depth(ctx, 5);
+    SSL_CTX_set_verify_depth(ctx, 5);   // Chain of trust length
 
     // Load the certificate from file and dir
     if (SSL_CTX_load_verify_locations(ctx, ca_file, ca_path) == 0) {

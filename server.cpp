@@ -74,6 +74,56 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    ///////////////////////////////////////////// Create ssl context and load certificates
+    // Create new SSL context
+    SSL_CTX *ctx = SSL_CTX_new(TLS_server_method());
+
+    // Load the certificate
+    // Set the certificate password into the openssl userdata
+    SSL_CTX_set_default_passwd_cb_userdata(ctx, (void *)&cert_pwd);
+    // Set the certificate password callback. Maybe the most ugly code that you will see
+    SSL_CTX_set_default_passwd_cb(ctx, [](char *buf, int size, int rwflag, void *userdata) -> int {
+        std::string *pwd = (std::string *) userdata;
+
+        if (pwd == 0 || pwd->empty() || size < (pwd->length() + 1)) {
+            return 0;
+        }
+
+        strncpy(buf, pwd->c_str(), pwd->length());
+        buf[pwd->length()] = 0;
+
+        return pwd->length();
+    });
+
+    // Load the certificate file
+    if (SSL_CTX_use_certificate_file(ctx, certificate.c_str(), SSL_FILETYPE_PEM) != 1) {
+        LOG_E << "Failed to load the certificate " << certificate << END_E;
+        LOG_SSL_STACK();
+        SSL_CTX_free(ctx);
+        return 1;
+    }
+
+    // Load the private key
+    if (SSL_CTX_use_PrivateKey_file(ctx, key.c_str(), SSL_FILETYPE_PEM) <= 0) {
+        LOG_E << "Failed to load the private key " << key << END_E;
+        LOG_SSL_STACK();
+
+        /**
+         * NOTE(max):   The free is useless if we shut down the client like in this case.
+         *              But if we plane to reuse the client application we need to clean up before leave
+         */
+        SSL_CTX_free(ctx);
+        return 1;
+    }
+
+    // Verify the private key
+    if (SSL_CTX_check_private_key(ctx) != 1) {
+        LOG_E << "Failed to verify the private key" << END_E;
+        LOG_SSL_STACK();
+        SSL_CTX_free(ctx);
+        return 1;
+    }
+
     // Infinite loop where we wait for new connectiona
     while (true) {
         LOG_I << "Waiting for client..." << END_I;
@@ -105,56 +155,7 @@ int main(int argc, char **argv) {
         inet_ntop(AF_INET, &(sockaddress.sin_addr), client_ip_buff, INET6_ADDRSTRLEN); // Ignore potential errors
         LOG_I << "Client connected " << client_ip_buff << ":" << port << END_I;
 
-        ///////////////////////////////////////////////////////////////// TLS
-
-        // Create new context
-        SSL_CTX *ctx = SSL_CTX_new(TLS_server_method());
-
-        // Load the certificate
-        // Set the certificate password into the openssl userdata
-        SSL_CTX_set_default_passwd_cb_userdata(ctx, (void *)&cert_pwd);
-        // Set the certificate password callback. maybe the most ugly code that you will see
-        SSL_CTX_set_default_passwd_cb(ctx, [](char *buf, int size, int rwflag, void *userdata) -> int {
-            std::string *pwd = (std::string *) userdata;
-
-            if (pwd == 0 || pwd->empty() || size < (pwd->length() + 1)) {
-                return 0;
-            }
-
-            strncpy(buf, pwd->data(), pwd->length());
-            buf[pwd->length()] = 0;
-
-            return pwd->length();
-        });
-
-        // Load the certificate file
-        if (SSL_CTX_use_certificate_file(ctx, certificate.c_str(), SSL_FILETYPE_PEM) != 1) {
-            LOG_E << "Failed to load the certificate " << certificate << END_E;
-            LOG_SSL_STACK();
-            SSL_CTX_free(ctx);
-            return 1;
-        }
-
-        // Load the private key
-        if (SSL_CTX_use_PrivateKey_file(ctx, key.c_str(), SSL_FILETYPE_PEM) <= 0) {
-            LOG_E << "Failed to load the private key " << key << END_E;
-            LOG_SSL_STACK();
-
-            /**
-             * NOTE(max):   The free is useless if we shut down the client like in this case. 
-             *              But if we plane to reuse the client application we need to clean up before leave
-             */
-            SSL_CTX_free(ctx);
-            return 1;
-        }
-
-        // Verify the private key
-        if (SSL_CTX_check_private_key(ctx) != 1) {
-            LOG_E << "Failed to verify the private key" << END_E;
-            LOG_SSL_STACK();
-            SSL_CTX_free(ctx);
-            return 1;
-        }
+        ///////////////////////////////////////////////////////////////// TLS CONNECTION
 
         // Create a new TLS structure
         if ((ssl = SSL_new(ctx)) == NULL) {
@@ -216,12 +217,12 @@ int main(int argc, char **argv) {
 
         LOG_S << "Disconnecting from the client..." << END_S;
         SSL_shutdown(ssl);
-        SSL_CTX_free(ctx);
         SSL_free(ssl);
         close(client_descriptor);
     }
 
     LOG_S << "Closing server..." << END_S;
+    SSL_CTX_free(ctx);
     close(listen_descriptor);
 
     return 0;
